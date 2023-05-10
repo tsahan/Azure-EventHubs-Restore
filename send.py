@@ -18,8 +18,8 @@ import logging
 import ast
 
 # Notes: Remove unneccessary packages
-EVENT_HUB_CONNECTION_STR = "Endpoint=sb://dataingestiondh.servicebus.windows.net/;SharedAccessKeyName=Allrights;SharedAccessKey=9ZlRnLrrxAfDkMMU6KrEDyTON2NMCi7jx+AEhG4HBJY=;EntityPath=testeventhub"
-EVENT_HUB_NAME = "testeventhub"
+EVENT_HUB_CONNECTION_STR = ""
+EVENT_HUB_NAME = ""
 BATCH_SIZE = 1000
    
 async def run():
@@ -35,8 +35,8 @@ async def run():
     total_lines = 0
     async with producer:
         # Root folder
-        root_folder = "C:\\Users\SESA692481\\OneDrive - Schneider Electric\\Code\\DHProdRestore\\files\\temp"
-        log_file = "C:\\Users\SESA692481\\OneDrive - Schneider Electric\\Code\\DHProdRestore\\output.txt"
+        root_folder = ""
+        log_file = ""
         
         for subdir, dirs, files in os.walk(root_folder):
             for file in files:
