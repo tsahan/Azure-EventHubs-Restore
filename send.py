@@ -1,28 +1,20 @@
 import asyncio
 from azure.eventhub import EventData
 from azure.eventhub.aio import EventHubProducerClient
-import asyncio
-import json
-import uuid
-import datetime,dateutil
 import time
 import os
-from azure.eventhub import EventHubConsumerClient, EventData
-from azure.eventhub.aio import EventHubConsumerClient
-from azure.eventhub.aio import EventHubProducerClient
-from dateutil import parser
-import dateutil.parser
-from datetime import date, datetime,timedelta
-from azure.identity import DefaultAzureCredential
-import logging 
+from datetime import datetime
 import ast
 
-# Notes: Remove unneccessary packages
+# Connection details
 EVENT_HUB_CONNECTION_STR = ""
 EVENT_HUB_NAME = ""
-BATCH_SIZE = 1000
-   
-async def run():
+
+# File locations
+root_folder = r""
+log_file = r""
+
+async def run(BATCH_SIZE):
     # Create a producer client to send messages to the event hub.
     # Specify a connection string to your event hubs namespace and
     # the event hub name.
@@ -34,10 +26,6 @@ async def run():
     file_count = 0
     total_lines = 0
     async with producer:
-        # Root folder
-        root_folder = ""
-        log_file = ""
-        
         for subdir, dirs, files in os.walk(root_folder):
             for file in files:
                 file_count += 1
@@ -49,72 +37,99 @@ async def run():
                 # Add events to the batch.
                 # batch = 0
                 num_lines = 0
-                y = 0
                 # msg_filename ="files/0.txt"
-                with open(msg_filename,'r') as f:
-                    print('\033[33mFile name: \033[0m', msg_filename)
+                with open(msg_filename, 'r') as f:
+                    print('File name: ', msg_filename)
+                    msg_str = ''
                     for line in f:
                         num_lines += 1
+                        if line.startswith('{ body: ') and ('timezone.utc) }' in line):
+                            msg_str = line
+                        else:
+                            #line.strip('\n')
+                            msg_str += line
+                            if msg_str.startswith('{ body: ') and ('timezone.utc) }' in line):
+                                pass
+                            else:
+                                continue
                         try:
-                            msg_str = line.replace ("b'", "'")
-                            msg_str_body = msg_str[msg_str.find ('{ body:')+7 : msg_str.find (", properties:")]
-                            msg_str_body = msg_str_body.replace ("'",'')
-                            msg_str_properties = msg_str[msg_str.find (", properties:")+ len(', properties:') : msg_str.find(", offset:") ]
-                            msg_str_properties = msg_str_properties.replace(r"\x",r"/x")
-                            if msg_str_properties.find ("'DSP-Id': UUID") >0:
-                                msg_str_properties = msg_str_properties.replace ('UUID(','"UUID(') 
-                                #msg_str_properties = msg_str_properties[:msg_str_properties.find ('"UUID(')] + '"' +  msg_str_properties[msg_str_properties.find (', DSP-Response-Code:')+45:] 
-                                msg_str_properties = msg_str_properties[:msg_str_properties.find (", 'DSP-Request-Type':")] + '"' + msg_str_properties[msg_str_properties.find (", 'DSP-Request-Type':"):]
+                            msg_str = msg_str.replace("b'", "'")
+                            msg_str_body = msg_str[msg_str.find('{ body:') + 7: msg_str.find(", properties:")]
+                            msg_str_body = msg_str_body.replace("'", '')
+                            msg_str_properties = msg_str[
+                                                 msg_str.find(", properties:") + len(', properties:'): msg_str.find(
+                                                     ", offset:")]
+                            msg_str_properties = msg_str_properties.replace(r"\x", r"/x")
+                            if msg_str_properties.find(", 'DSP-Response-Code'") > 0:
+                                msg_str_properties = msg_str_properties[
+                                                     :msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
+                            if msg_str_properties.find("'DSP-Id': UUID") > 0:
+                                msg_str_properties = msg_str_properties.replace('UUID(', '"UUID(')
+                                # msg_str_properties = msg_str_properties[:msg_str_properties.find ('"UUID(')] + '"' +  msg_str_properties[msg_str_properties.find (', DSP-Response-Code:')+45:]
+                                msg_str_properties = msg_str_properties[:msg_str_properties.find(
+                                    ", 'DSP-Request-Type':")] + '"' + msg_str_properties[msg_str_properties.find(
+                                    ", 'DSP-Request-Type':"):]
                             # batch +=1
                             if (len(event_data_batch) < BATCH_SIZE):
-                                event = EventData(body= msg_str_body)
+                                event = EventData(body=msg_str_body)
                                 # print(event)
                                 event.properties = ast.literal_eval(msg_str_properties)
                                 event_data_batch.add(event)
                                 event_count += 1
+                                msg_str=''
                             else:
-                                print('\033[32mBatch size: \033[0m', len(event_data_batch))
-                                await producer.send_batch(event_data_batch)    
+                                print('Batch size: ', len(event_data_batch))
+                                if (event_data_batch.size_in_bytes > 1000000):
+                                    print("The max batch size is exceeded.")
+                                else:
+                                    await producer.send_batch(event_data_batch)
+                                    time.sleep(1)
                                 event_data_batch = await producer.create_batch()
-                                event = EventData(body= msg_str_body)
+                                event = EventData(body=msg_str_body)
                                 event.properties = ast.literal_eval(msg_str_properties)
                                 event_data_batch.add(event)
                                 event_count += 1
                                 # batch = 0
                         except Exception as err:
                             with open(log_file, 'a') as log_f:
-                                print("We're in the exception")
                                 print(str(err))
-                                log_f.write ('Error encountered while processing:' + msg_str + 'in the file' + msg_filename + '\n')
-                                log_f.write (str(err))
-                                log_f.write (msg_str_body + '\n')
+                                log_f.write(
+                                    'Error encountered while processing: ' + msg_str + ' in the file ' + msg_filename + '\n')
+                                log_f.write(str(err))
+                                log_f.write(msg_str_body + '\n')
                                 log_f.write(msg_str_properties + '\n')
-                                log_f.close()
-                            pass 
-                        # continue
+                            pass
+                            # continue
                     if len(event_data_batch) > 0:
-                        print('\033[32mBatch size: \033[0m', len(event_data_batch))
-                        await producer.send_batch(event_data_batch)    
-                        event_data_batch = await producer.create_batch()                               
+                        print('Batch size: ', len(event_data_batch))
+                        if (event_data_batch.size_in_bytes > 1000000):
+                            print("The max batch size is exceeded.")
+                        else:
+                            await producer.send_batch(event_data_batch)
+                            #time.sleep(1)
+                        event_data_batch = await producer.create_batch()
                         # batch = 0
-                    f.close()
                 with open(log_file, 'a') as log_f:
                     output_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    log_f.write (output_time + ' Completed processing: ' + msg_filename + '\n')
-                    log_f.close()
+                    log_f.write(output_time + ' Completed processing: ' + msg_filename + '\n')
                 # quit()
-                print('\033[32mNumber of lines in the file:\033[0m', num_lines)
+                print('Number of lines in the file: ', num_lines)
+                print('------------------------------------------------------------------------------------------------------')
                 total_lines += num_lines
-    print('\033[35mTotal num of events: \033[0m', event_count)
-    print('\033[35mTotal num of lines: \033[0m', total_lines)
-    print('\033[35mTotal num of files: \033[0m', file_count)
+    with open(log_file, 'a') as log_f:
+        log_f.write('Total num of events: ' + str(event_count) + '\n')
+        log_f.write('Total num of lines: ' + str(total_lines) + '\n')
+        log_f.write('Total num of files: ' + str(file_count) + '\n')
 
 startTime = datetime.now()
-print('The script has started running at ', startTime)
+with open(log_file, 'a') as log_f:
+    log_f.write(str(startTime.strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT START----------' + '\n') 
 loop = asyncio.get_event_loop()
-loop.run_until_complete(run())
-print('\033[35mTotal processing time in seconds: \033[0m', datetime.now() - startTime)
-print('The script has finished running at ', datetime.now())
+loop.run_until_complete(run(2500))
+with open(log_file, 'a') as log_f:
+    log_f.write('Total processing time in seconds: ' + str((datetime.now() - startTime)) + '\n')
+    log_f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT END----------' + '\n')
+
 
 
 
