@@ -7,12 +7,12 @@ from datetime import datetime
 import ast
 
 # Connection details
-EVENT_HUB_CONNECTION_STR = ""
-EVENT_HUB_NAME = ""
+EVENT_HUB_CONNECTION_STR = "<connection_string>"
+EVENT_HUB_NAME = "<event_hub_name>"
 
 # File locations
-root_folder = r""
-log_file = r""
+root_folder = r"<root_file_path>"
+log_file = r"<log_file_path\output.txt>"
 
 async def run(BATCH_SIZE):
     # Create a producer client to send messages to the event hub.
@@ -33,8 +33,6 @@ async def run(BATCH_SIZE):
                 msg_filename = mfilename
                 # Create a batch.
                 event_data_batch = await producer.create_batch()
-                # can we add more events to the existing batch
-                # Add events to the batch.
                 # batch = 0
                 num_lines = 0
                 # msg_filename ="files/0.txt"
@@ -53,7 +51,7 @@ async def run(BATCH_SIZE):
                             else:
                                 continue
                         try:
-                            msg_str = msg_str.replace("b'", "'")
+                            msg_str = msg_str.replace(" b'", " '").replace(" {b'", " {'")
                             msg_str_body = msg_str[msg_str.find('{ body:') + 7: msg_str.find(", properties:")]
                             msg_str_body = msg_str_body.replace("'", '')
                             msg_str_properties = msg_str[
@@ -61,19 +59,19 @@ async def run(BATCH_SIZE):
                                                      ", offset:")]
                             msg_str_properties = msg_str_properties.replace(r"\x", r"/x")
                             if msg_str_properties.find(", 'DSP-Response-Code'") > 0:
-                                msg_str_properties = msg_str_properties[
-                                                     :msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
+                                msg_str_properties = msg_str_properties[:msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
                             if msg_str_properties.find("'DSP-Id': UUID") > 0:
-                                msg_str_properties = msg_str_properties.replace('UUID(', '"UUID(')
+                                msg_str_properties = msg_str_properties.replace('UUID(', '').replace("')","'")
                                 # msg_str_properties = msg_str_properties[:msg_str_properties.find ('"UUID(')] + '"' +  msg_str_properties[msg_str_properties.find (', DSP-Response-Code:')+45:]
-                                msg_str_properties = msg_str_properties[:msg_str_properties.find(
-                                    ", 'DSP-Request-Type':")] + '"' + msg_str_properties[msg_str_properties.find(
-                                    ", 'DSP-Request-Type':"):]
+                                # msg_str_properties = msg_str_properties[:msg_str_properties.find(
+                                #     ", 'DSP-Request-Type':")] + '"' + msg_str_properties[msg_str_properties.find(
+                                #     ", 'DSP-Request-Type':"):]
+                                # print(msg_str_properties)
                             # batch +=1
                             if (len(event_data_batch) < BATCH_SIZE):
                                 event = EventData(body=msg_str_body)
-                                # print(event)
                                 event.properties = ast.literal_eval(msg_str_properties)
+                                # Add events to the batch.
                                 event_data_batch.add(event)
                                 event_count += 1
                                 msg_str=''
@@ -87,6 +85,7 @@ async def run(BATCH_SIZE):
                                 event_data_batch = await producer.create_batch()
                                 event = EventData(body=msg_str_body)
                                 event.properties = ast.literal_eval(msg_str_properties)
+                                # Add events to the batch.
                                 event_data_batch.add(event)
                                 event_count += 1
                                 # batch = 0
