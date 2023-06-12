@@ -62,11 +62,9 @@ async def run(BATCH_SIZE):
                                 msg_str_properties = msg_str_properties[:msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
                             if msg_str_properties.find("'DSP-Id': UUID") > 0:
                                 msg_str_properties = msg_str_properties.replace('UUID(', '').replace("')","'")
-                                # msg_str_properties = msg_str_properties[:msg_str_properties.find ('"UUID(')] + '"' +  msg_str_properties[msg_str_properties.find (', DSP-Response-Code:')+45:]
-                                # msg_str_properties = msg_str_properties[:msg_str_properties.find(
-                                #     ", 'DSP-Request-Type':")] + '"' + msg_str_properties[msg_str_properties.find(
-                                #     ", 'DSP-Request-Type':"):]
-                                # print(msg_str_properties)
+                            if msg_str_properties.find("'DSP-Request-Type': 'PUT'") > 0:
+                                if msg_str_properties.find("'DSP-Type': 'NumericTimeSeries'") > 0 or msg_str_properties.find("'DSP-Type': 'StringTimeSeries'") > 0:
+                                    msg_str_properties = msg_str_properties.replace("'DSP-Request-Type': 'PUT'", "'DSP-Request-Type': 'POST'")
                             # batch +=1
                             if (len(event_data_batch) < BATCH_SIZE):
                                 event = EventData(body=msg_str_body)
@@ -74,7 +72,7 @@ async def run(BATCH_SIZE):
                                 # Add events to the batch.
                                 event_data_batch.add(event)
                                 event_count += 1
-                                msg_str=''
+                                msg_str =''
                             else:
                                 print('Batch size: ', len(event_data_batch))
                                 if (event_data_batch.size_in_bytes > 1000000):
@@ -90,8 +88,8 @@ async def run(BATCH_SIZE):
                                 event_count += 1
                                 # batch = 0
                         except Exception as err:
-                            with open(log_file, 'a') as log_f:
-                                print(str(err))
+                            print(str(err))
+                            with open(log_file, 'a+') as log_f:
                                 log_f.write(
                                     'Error encountered while processing: ' + msg_str + ' in the file ' + msg_filename + '\n')
                                 log_f.write(str(err))
@@ -108,26 +106,26 @@ async def run(BATCH_SIZE):
                             #time.sleep(1)
                         event_data_batch = await producer.create_batch()
                         # batch = 0
-                with open(log_file, 'a') as log_f:
+                with open(log_file, 'a+') as log_f:
                     output_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
                     log_f.write(output_time + ' Completed processing: ' + msg_filename + '\n')
                 # quit()
                 print('Number of lines in the file: ', num_lines)
                 print('------------------------------------------------------------------------------------------------------')
                 total_lines += num_lines
-    with open(log_file, 'a') as log_f:
+    with open(log_file, 'a+') as log_f:
         log_f.write('Total num of events: ' + str(event_count) + '\n')
         log_f.write('Total num of lines: ' + str(total_lines) + '\n')
         log_f.write('Total num of files: ' + str(file_count) + '\n')
 
 startTime = datetime.now()
-with open(log_file, 'a') as log_f:
-    log_f.write(str(startTime.strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT START----------' + '\n') 
+with open(log_file, 'a+') as log_f:
+    log_f.write(str(startTime.strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION STARTED----------' + '\n')
 loop = asyncio.get_event_loop()
 loop.run_until_complete(run(2500))
-with open(log_file, 'a') as log_f:
+with open(log_file, 'a+') as log_f:
     log_f.write('Total processing time in seconds: ' + str((datetime.now() - startTime)) + '\n')
-    log_f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT END----------' + '\n')
+    log_f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION ENDED ----------' + '\n')
 
 
 
