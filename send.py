@@ -14,7 +14,8 @@ EVENT_HUB_NAME = "<event_hub_name>"
 root_folder = r"<root_file_path>"
 log_file = r"<log_file_path\output.txt>"
 
-async def run(BATCH_SIZE):
+
+async def run(batch_size):
     # Create a producer client to send messages to the event hub.
     # Specify a connection string to your event hubs namespace and
     # the event hub name.
@@ -44,7 +45,7 @@ async def run(BATCH_SIZE):
                         if line.startswith('{ body: ') and ('timezone.utc) }' in line):
                             msg_str = line
                         else:
-                            #line.strip('\n')
+                            # line.strip('\n')
                             msg_str += line
                             if msg_str.startswith('{ body: ') and ('timezone.utc) }' in line):
                                 pass
@@ -59,23 +60,27 @@ async def run(BATCH_SIZE):
                                                      ", offset:")]
                             msg_str_properties = msg_str_properties.replace(r"\x", r"/x")
                             if msg_str_properties.find(", 'DSP-Response-Code'") > 0:
-                                msg_str_properties = msg_str_properties[:msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
+                                msg_str_properties = msg_str_properties[
+                                                     :msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
                             if msg_str_properties.find("'DSP-Id': UUID") > 0:
-                                msg_str_properties = msg_str_properties.replace('UUID(', '').replace("')","'")
+                                msg_str_properties = msg_str_properties.replace('UUID(', '').replace("')", "'")
                             if msg_str_properties.find("'DSP-Request-Type': 'PUT'") > 0:
-                                if msg_str_properties.find("'DSP-Type': 'NumericTimeSeries'") > 0 or msg_str_properties.find("'DSP-Type': 'StringTimeSeries'") > 0:
-                                    msg_str_properties = msg_str_properties.replace("'DSP-Request-Type': 'PUT'", "'DSP-Request-Type': 'POST'")
+                                if msg_str_properties.find(
+                                        "'DSP-Type': 'NumericTimeSeries'") > 0 or msg_str_properties.find(
+                                        "'DSP-Type': 'StringTimeSeries'") > 0:
+                                    msg_str_properties = msg_str_properties.replace("'DSP-Request-Type': 'PUT'",
+                                                                                    "'DSP-Request-Type': 'POST'")
                             # batch +=1
-                            if (len(event_data_batch) < BATCH_SIZE):
+                            if len(event_data_batch) < batch_size:
                                 event = EventData(body=msg_str_body)
                                 event.properties = ast.literal_eval(msg_str_properties)
                                 # Add events to the batch.
                                 event_data_batch.add(event)
                                 event_count += 1
-                                msg_str =''
+                                msg_str = ''
                             else:
                                 print('Batch size: ', len(event_data_batch))
-                                if (event_data_batch.size_in_bytes > 1000000):
+                                if event_data_batch.size_in_bytes > 1000000:
                                     print("The max batch size is exceeded.")
                                 else:
                                     await producer.send_batch(event_data_batch)
@@ -99,11 +104,11 @@ async def run(BATCH_SIZE):
                             # continue
                     if len(event_data_batch) > 0:
                         print('Batch size: ', len(event_data_batch))
-                        if (event_data_batch.size_in_bytes > 1000000):
+                        if event_data_batch.size_in_bytes > 1000000:
                             print("The max batch size is exceeded.")
                         else:
                             await producer.send_batch(event_data_batch)
-                            #time.sleep(1)
+                            # time.sleep(1)
                         event_data_batch = await producer.create_batch()
                         # batch = 0
                 with open(log_file, 'a+') as log_f:
@@ -111,12 +116,14 @@ async def run(BATCH_SIZE):
                     log_f.write(output_time + ' Completed processing: ' + msg_filename + '\n')
                 # quit()
                 print('Number of lines in the file: ', num_lines)
-                print('------------------------------------------------------------------------------------------------------')
+                print(
+                    '------------------------------------------------------------------------------------------------------')
                 total_lines += num_lines
     with open(log_file, 'a+') as log_f:
         log_f.write('Total num of events: ' + str(event_count) + '\n')
         log_f.write('Total num of lines: ' + str(total_lines) + '\n')
         log_f.write('Total num of files: ' + str(file_count) + '\n')
+
 
 startTime = datetime.now()
 with open(log_file, 'a+') as log_f:
@@ -125,9 +132,5 @@ loop = asyncio.get_event_loop()
 loop.run_until_complete(run(2500))
 with open(log_file, 'a+') as log_f:
     log_f.write('Total processing time in seconds: ' + str((datetime.now() - startTime)) + '\n')
-    log_f.write(str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION ENDED ----------' + '\n')
-
-
-
-
-
+    log_f.write(
+        str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION ENDED ----------' + '\n')
