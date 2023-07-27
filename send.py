@@ -37,28 +37,28 @@ async def run(batch_size):
                 # batch = 0
                 num_lines = 0
                 # msg_filename ="files/0.txt"
-                with open(msg_filename, 'r') as f:
-                    print('File name: ', msg_filename)
-                    msg_str = ''
+                with open(msg_filename, "r") as f:
+                    print("File name: ", msg_filename)
+                    msg_str = ""
+                    # Check if it is a multi-line message
                     for line in f:
                         num_lines += 1
-                        if line.startswith('{ body: ') and ('timezone.utc) }' in line):
+                        if line.startswith("{ body: ") and ("timezone.utc) }" in line):
                             msg_str = line
                         else:
-                            # line.strip('\n')
                             msg_str += line
-                            if msg_str.startswith('{ body: ') and ('timezone.utc) }' in line):
-                                pass
-                            else:
+                            if not (msg_str.startswith("{ body: ") and ("timezone.utc) }" in line)):
                                 continue
+
+                        # Process the message            
                         try:
-                            msg_str = msg_str.replace(" b'", " '").replace(" {b'", " {'")
-                            msg_str_body = msg_str[msg_str.find('{ body:') + 7: msg_str.find(", properties:")]
-                            msg_str_body = msg_str_body.replace("'", '')
+                            # String manipulations on the messages
+                            msg_str_body = msg_str[msg_str.find("{ body:") + 7: msg_str.find(", properties:")]
+                            msg_str_body = msg_str_body.replace("'", "")
                             msg_str_properties = msg_str[
-                                                 msg_str.find(", properties:") + len(', properties:'): msg_str.find(
+                                                 msg_str.find(", properties:") + len(", properties:"): msg_str.find(
                                                      ", offset:")]
-                            msg_str_properties = msg_str_properties.replace(r"\x", r"/x")
+                            # msg_str_properties = msg_str_properties.replace(r"\x", r"/x")
                             if msg_str_properties.find(", 'DSP-Response-Code'") > 0:
                                 msg_str_properties = msg_str_properties[
                                                      :msg_str_properties.find(", 'DSP-Response-Code'")] + '}'
@@ -70,67 +70,83 @@ async def run(batch_size):
                                         "'DSP-Type': 'StringTimeSeries'") > 0:
                                     msg_str_properties = msg_str_properties.replace("'DSP-Request-Type': 'PUT'",
                                                                                     "'DSP-Request-Type': 'POST'")
-                            # batch +=1
-                            if len(event_data_batch) < batch_size:
-                                event = EventData(body=msg_str_body)
-                                event.properties = ast.literal_eval(msg_str_properties)
-                                # Add events to the batch.
+                            # Convert the text to a Python dictionary
+                            raw_properties = ast.literal_eval(msg_str_properties)
+                            
+                            # Convert byte strings to regular strings
+                            decoded_properties = {}
+                            for key, value in raw_properties.items():
+                                decoded_key = key.decode("utf-8") if isinstance(key, bytes) else key                            
+                                decoded_value = value.decode("utf-8") if isinstance(value, bytes) else value
+                                decoded_properties[decoded_key] = decoded_value
+                            
+                            # Create an event
+                            event = EventData(body=msg_str_body)
+                            event.properties = decoded_properties
+                            
+                            # Add events to the batch while the batch size is not exceeded
+                            if len(event_data_batch) < batch_size:                               
                                 event_data_batch.add(event)
-                                event_count += 1
-                                msg_str = ''
+
+                            # Send batch of events
                             else:
-                                print('Batch size: ', len(event_data_batch))
+                                print("Batch size: ", len(event_data_batch))
                                 if event_data_batch.size_in_bytes > 1000000:
                                     print("The max batch size is exceeded.")
                                 else:
                                     await producer.send_batch(event_data_batch)
                                     time.sleep(1)
+                                # Add current message to a new batch
                                 event_data_batch = await producer.create_batch()
-                                event = EventData(body=msg_str_body)
-                                event.properties = ast.literal_eval(msg_str_properties)
-                                # Add events to the batch.
                                 event_data_batch.add(event)
-                                event_count += 1
-                                # batch = 0
+
                         except Exception as err:
                             print(str(err))
-                            with open(log_file, 'a+') as log_f:
+                            with open(log_file, "a+") as log_f:
                                 log_f.write(
-                                    'Error encountered while processing: ' + msg_str + ' in the file ' + msg_filename + '\n')
-                                log_f.write(str(err))
-                                log_f.write(msg_str_body + '\n')
-                                log_f.write(msg_str_properties + '\n')
+                                    "ERROR: " + str(err) + ", File path: " + msg_filename + ", Event: " + msg_str)
                             pass
-                            # continue
+                        # Reset the message
+                        msg_str = ""
+                        event_count += 1
+                        
+                    # Send remaining events that are not sent from the last batch
                     if len(event_data_batch) > 0:
-                        print('Batch size: ', len(event_data_batch))
+                        print("Batch size: ", len(event_data_batch))
                         if event_data_batch.size_in_bytes > 1000000:
                             print("The max batch size is exceeded.")
                         else:
                             await producer.send_batch(event_data_batch)
                             # time.sleep(1)
-                        event_data_batch = await producer.create_batch()
-                        # batch = 0
-                with open(log_file, 'a+') as log_f:
+
+                # Log for each file
+                with open(log_file, "a+") as log_f:
                     output_time = str(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                    log_f.write(output_time + ' Completed processing: ' + msg_filename + '\n')
-                # quit()
-                print('Number of lines in the file: ', num_lines)
+                    log_f.write(output_time + " Completed processing: " + msg_filename + "\n")
+                print("Number of lines in the file: ", num_lines)
                 print(
-                    '------------------------------------------------------------------------------------------------------')
+                    "------------------------------------------------------------------------------------------------------")
                 total_lines += num_lines
-    with open(log_file, 'a+') as log_f:
-        log_f.write('Total num of events: ' + str(event_count) + '\n')
-        log_f.write('Total num of lines: ' + str(total_lines) + '\n')
-        log_f.write('Total num of files: ' + str(file_count) + '\n')
 
+    # Log for the total process
+    with open(log_file, "a+") as log_f:
+        log_f.write("Total num of files: " + str(file_count) + "\n")
+        log_f.write("Total num of lines: " + str(total_lines) + "\n")
+        log_f.write("Total num of events: " + str(event_count) + "\n")
 
-startTime = datetime.now()
-with open(log_file, 'a+') as log_f:
-    log_f.write(str(startTime.strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION STARTED----------' + '\n')
-loop = asyncio.get_event_loop()
-loop.run_until_complete(run(2500))
-with open(log_file, 'a+') as log_f:
-    log_f.write('Total processing time in seconds: ' + str((datetime.now() - startTime)) + '\n')
-    log_f.write(
-        str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + ' ----------SCRIPT EXECUTION ENDED ----------' + '\n')
+def main():
+    startTime = datetime.now()
+    with open(log_file, "a+") as log_f:
+        log_f.write(str(startTime.strftime("%Y-%m-%d %H:%M:%S")) + " ----------SCRIPT EXECUTION STARTED----------" + "\n")
+    # Start processing the files
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(run(2500))
+    # Finish processing the files
+    with open(log_file, "a+") as log_f:
+        log_f.write("Total processing time in seconds: " + str((datetime.now() - startTime)) + "\n")
+        log_f.write(
+            str(datetime.now().strftime("%Y-%m-%d %H:%M:%S")) + " ----------SCRIPT EXECUTION ENDED ----------" + "\n")
+        
+if __name__ == "__main__":
+    # This code won't run if this file is imported.
+    main()
