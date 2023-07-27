@@ -17,8 +17,7 @@ async def run():
     for subdir, dirs, files in os.walk(root_folder):
         for file in files:
             file_count += 1
-            mfilename = os.path.join(subdir, file)
-            msg_filename = mfilename
+            msg_filename = os.path.join(subdir, file)
             num_lines = 0
             with open(msg_filename, "r") as f:
                 print("File name: ", msg_filename)

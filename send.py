@@ -22,7 +22,7 @@ async def run(batch_size):
     producer = EventHubProducerClient.from_connection_string(
         conn_str=EVENT_HUB_CONNECTION_STR, eventhub_name=EVENT_HUB_NAME
     )
-
+    # Initialize the variables
     event_count = 0
     file_count = 0
     total_lines = 0
@@ -30,13 +30,10 @@ async def run(batch_size):
         for subdir, dirs, files in os.walk(root_folder):
             for file in files:
                 file_count += 1
-                mfilename = os.path.join(subdir, file)
-                msg_filename = mfilename
+                msg_filename = os.path.join(subdir, file)
                 # Create a batch.
                 event_data_batch = await producer.create_batch()
-                # batch = 0
                 num_lines = 0
-                # msg_filename ="files/0.txt"
                 with open(msg_filename, "r") as f:
                     print("File name: ", msg_filename)
                     msg_str = ""
